@@ -72,6 +72,7 @@ const int RL_DIRECTION_SIGN = 1;
 const int RR_DIRECTION_SIGN = 1;
 
 enum RobotState {
+  // ロボットの「今の行動」を表す。loop()ではこの状態を見て次の動きを決める。
   STATE_INIT,
   STATE_CALIBRATION,
   STATE_LINE_TRACE,
@@ -92,6 +93,7 @@ enum LineColor {
 };
 
 struct SensorData {
+  // 1回の制御ループで使うセンサー値をまとめて持つ。
   int color[4];
   float distanceCm;
   float rollDeg;
@@ -118,6 +120,7 @@ float currentRl = 0.0;
 float currentRr = 0.0;
 
 void setup() {
+  // setup()は電源投入後に1回だけ動く。通信、ピン、センサーの初期設定を行う。
   Serial.begin(115200);
   Wire.begin();
 
@@ -144,6 +147,7 @@ void setup() {
 }
 
 void loop() {
+  // loop()は繰り返し動く。読む -> 判断する -> モーターへ出す、の順で制御する。
   SensorData sensor = readSensors();
 
   if (abs(sensor.rollDeg) >= TILT_STOP_DEG) {
@@ -158,11 +162,13 @@ void loop() {
 }
 
 MotorCommand updateController(const SensorData& sensor) {
+  // センサー値と現在の状態から、次に出すモーター指令を決める中心部分。
   if (state == STATE_EMERGENCY_STOP || state == STATE_GOAL) {
     return makeStopCommand();
   }
 
   if (state == STATE_CALIBRATION) {
+    // 起動直後は少し待つ。センサー値が落ち着くまで走らせないため。
     if (millis() - stateEnteredMs >= CALIBRATION_MS) {
       setState(STATE_LINE_TRACE);
     }
@@ -170,12 +176,14 @@ MotorCommand updateController(const SensorData& sensor) {
   }
 
   if (abs(sensor.rollDeg) >= TILT_RECOVER_DEG) {
+    // 大きく傾いたら、ライン追従より姿勢の立て直しを優先する。
     setState(STATE_TILT_RECOVERY);
   } else if (sensor.distanceCm > 0.0 && sensor.distanceCm <= OBSTACLE_DISTANCE_CM) {
     setState(STATE_OBSTACLE_DETECTED);
   }
 
   if (isGoalPattern(sensor)) {
+    // 一瞬の誤検出で止まらないよう、ゴール模様が一定時間続いたときだけゴール扱いにする。
     if (goalCandidateMs == 0) {
       goalCandidateMs = millis();
     }
@@ -248,6 +256,7 @@ MotorCommand updateController(const SensorData& sensor) {
 }
 
 SensorData readSensors() {
+  // ここで全センサーを読み、他の関数が扱いやすい形にまとめる。
   SensorData data;
   data.color[0] = readMuxAverage(CH_COLOR_S1);
   data.color[1] = readMuxAverage(CH_COLOR_S2);
@@ -259,6 +268,7 @@ SensorData readSensors() {
 }
 
 int readMuxAverage(int channel) {
+  // 74HC4051で読む入力を切り替え、数回読んだ平均を使ってノイズを減らす。
   selectMux(channel);
   delayMicroseconds(250);
   long sum = 0;
@@ -344,6 +354,7 @@ bool isGoalPattern(const SensorData& sensor) {
 }
 
 int calcLineError(const SensorData& sensor) {
+  // 黒線が中央からどれだけ左右にずれているかを、負=左、正=右で表す。
   const int weights[4] = {-3, -1, 1, 3};  // S1,S2,S3,S4を左から右へ並べた仮定。
   int sum = 0;
   int count = 0;
@@ -371,6 +382,7 @@ MotorCommand makeStopCommand() {
 }
 
 MotorCommand makeMecanumCommand(float vx, float vy, float omega, int servoDeg) {
+  // vx=前後、vy=左右、omega=旋回。4輪それぞれの強さに変換する。
   MotorCommand cmd;
   cmd.fl = vx + vy + omega;
   cmd.fr = vx - vy - omega;
@@ -388,6 +400,7 @@ MotorCommand makeMecanumCommand(float vx, float vy, float omega, int servoDeg) {
 }
 
 void applyMotorCommand(const MotorCommand& cmd) {
+  // 計算した指令を実際のサーボ角度とモーターPWMへ反映する。
   steeringServo.write(constrain(cmd.servoDeg, SERVO_LEFT, SERVO_RIGHT));
 
   if (cmd.stop) {
