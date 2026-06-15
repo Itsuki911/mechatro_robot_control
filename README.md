@@ -6,6 +6,7 @@
 
 ```text
 mechatro_robot_control/
+├── STUDY.md
 ├── arduino/
 │   └── mechatro_robot_control.ino
 ├── cpp/
@@ -23,6 +24,8 @@ mechatro_robot_control/
 │   └── assets/
 └── README.md
 ```
+
+Arduino/C++の文法、使用している関数・クラス、センサー処理、メカナム輪の計算は[STUDY.md](STUDY.md)に初心者向けにまとめています。
 
 ## 参考にした資料
 
