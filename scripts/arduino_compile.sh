@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Compile the main Arduino UNO sketch with Arduino CLI.
 set -euo pipefail
 
 # Example:

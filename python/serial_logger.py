@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Save Arduino CSV serial output into logs/ with a timestamped filename."""
+"""Save Arduino CSV serial output into logs/ with a timestamped filename.
+
+Arduino側はCSVヘッダーとデータ行、コメント行を混ぜて出す。
+このスクリプトはコメント行を捨て、ヘッダーを見つけてからCSVとして保存する。
+"""
 
 from __future__ import annotations
 
@@ -14,6 +18,7 @@ import serial
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command line options for serial port, baudrate, duration, and output directory."""
     parser = argparse.ArgumentParser(description="Arduino CSV serial logger")
     parser.add_argument("--port", required=True, help="Serial port, e.g. /dev/cu.usbmodemXXXX")
     parser.add_argument("--baud", type=int, default=115200, help="Baudrate")
@@ -23,6 +28,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Open the serial port and keep appending valid CSV rows until timeout or Ctrl-C."""
     args = parse_args()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -37,6 +43,7 @@ def main() -> int:
             if args.seconds and time.monotonic() - started >= args.seconds:
                 break
             raw = ser.readline().decode("utf-8", errors="replace").strip()
+            # Lines beginning with # are human-readable status messages, not CSV samples.
             if not raw or raw.startswith("#"):
                 continue
             parts = next(csv.reader([raw]))
@@ -46,6 +53,7 @@ def main() -> int:
                 writer.writerow(header)
                 f.flush()
                 continue
+            # Ignore data until the Arduino has printed the CSV header.
             if writer is None:
                 continue
             writer.writerow(parts)

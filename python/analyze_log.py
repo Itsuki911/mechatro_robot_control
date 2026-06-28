@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Analyze robot CSV logs from real serial captures or data/dummy_sensor_*.csv."""
+"""Analyze robot CSV logs from real serial captures or data/dummy_sensor_*.csv.
+
+The summary path uses only the Python standard library so it can run before
+pandas/matplotlib are installed. Plotting imports matplotlib only when needed.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +38,7 @@ REQUIRED_COLUMNS = [
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse the target CSV path and optional plotting settings."""
     parser = argparse.ArgumentParser(description="Analyze mechatro robot CSV logs")
     parser.add_argument("csv_path", help="CSV path, e.g. data/dummy_sensor_clean.csv")
     parser.add_argument("--out-dir", default="logs/analysis", help="Directory for PNG graphs")
@@ -42,6 +47,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_log(path: Path) -> list[dict[str, str]]:
+    """Read a robot CSV file and verify that the required columns exist."""
     with path.open(newline="") as f:
         rows = [row for row in csv.DictReader(line for line in f if not line.startswith("#"))]
     if not rows:
@@ -53,10 +59,12 @@ def load_log(path: Path) -> list[dict[str, str]]:
 
 
 def as_float(row: dict[str, str], key: str) -> float:
+    """Convert a numeric CSV column to float in one obvious place."""
     return float(row[key])
 
 
 def print_summary(rows: list[dict[str, str]]) -> None:
+    """Print state counts, timing maxima, final distance, and error flag counts."""
     time_values = [as_float(row, "time_ms") for row in rows]
     states = Counter(row["state"] for row in rows)
     errors = Counter(row["error_flags"] for row in rows)
@@ -74,6 +82,7 @@ def print_summary(rows: list[dict[str, str]]) -> None:
 
 
 def plot_log(rows: list[dict[str, str]], out_dir: Path, stem: str) -> None:
+    """Create a compact multi-panel PNG for sensors, actuators, distance, and timers."""
     import matplotlib.pyplot as plt
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -107,6 +116,7 @@ def plot_log(rows: list[dict[str, str]], out_dir: Path, stem: str) -> None:
 
 
 def main() -> int:
+    """Load the CSV, print the summary, and optionally save plots."""
     args = parse_args()
     path = Path(args.csv_path)
     rows = load_log(path)

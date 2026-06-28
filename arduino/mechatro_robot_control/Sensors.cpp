@@ -1,3 +1,11 @@
+/*
+  Sensors.cpp
+
+  実機センサーをArduino APIで読み取り、Controllerが扱いやすいSensorDataへまとめる。
+  カラーセンサーはMUX経由、距離は超音波TRIG/ECHO、姿勢はMPU-6050のI2C読み取り。
+  失敗や異常値はerrorFlagsへ入れ、制御側が安全寄りに判断できるようにする。
+*/
+
 #include "Sensors.h"
 
 #include <Wire.h>
@@ -8,12 +16,14 @@
 static int previousColor[4] = {0, 0, 0, 0};
 static unsigned long lastColorChangeMs = 0;
 
+// 74HC4051などのMUXで、読みたいセンサーチャンネルを選ぶ。
 static void selectMux(int channel) {
   digitalWrite(PIN_MUX_S0, channel & 0x01);
   digitalWrite(PIN_MUX_S1, (channel >> 1) & 0x01);
   digitalWrite(PIN_MUX_S2, (channel >> 2) & 0x01);
 }
 
+// MUX入力を複数回読み、単発ノイズを少し抑えた平均値を返す。
 static int readMuxAverage(int channel) {
   selectMux(channel);
   delayMicroseconds(180);
@@ -25,6 +35,7 @@ static int readMuxAverage(int channel) {
   return (int)(sum / SENSOR_SAMPLES);
 }
 
+// MPU-6050のスリープを解除する。失敗はreadRollDeg側で検出する。
 static void initMpu() {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x6B);
@@ -32,6 +43,7 @@ static void initMpu() {
   Wire.endTransmission(true);
 }
 
+// MPU-6050の加速度からroll角を概算する。I2C失敗時はok=falseを返す。
 static float readRollDeg(bool* ok) {
   *ok = true;
   Wire.beginTransmission(MPU_ADDR);
@@ -54,6 +66,7 @@ static float readRollDeg(bool* ok) {
   return atan2(ayG, azG) * 57.2958;
 }
 
+// センサー系のピン、I2C、MPUを初期化する。
 void initSensors() {
   pinMode(PIN_MUX_S0, OUTPUT);
   pinMode(PIN_MUX_S1, OUTPUT);
@@ -66,6 +79,7 @@ void initSensors() {
   lastColorChangeMs = millis();
 }
 
+// 1制御周期分の全センサー値をまとめて読み、異常フラグも同時に作る。
 SensorData readSensors(unsigned long nowMs) {
   SensorData data;
   data.timeMs = nowMs;
@@ -77,6 +91,7 @@ SensorData readSensors(unsigned long nowMs) {
   data.rollDeg = readRollDeg(&data.mpuOk);
   data.errorFlags = ERROR_NONE;
 
+  // 全ゼロと長時間変化なしは、配線抜けやセンサー停止の候補として扱う。
   data.allZero = true;
   bool changed = false;
   for (int i = 0; i < 4; i++) {
@@ -108,6 +123,7 @@ SensorData readSensors(unsigned long nowMs) {
   return data;
 }
 
+// 白線/黒床の判定。LINE_IS_WHITEで将来の黒線構成にも切り替えられる。
 LineColor classifyLineValue(int value) {
   if (LINE_IS_WHITE) {
     if (value >= WHITE_LINE_THRESHOLD) {
@@ -127,14 +143,17 @@ LineColor classifyLineValue(int value) {
   return LINE_UNKNOWN;
 }
 
+// 指定値が「追従すべきライン」と判定されるかを返す。
 bool isLineDetectedValue(int value) {
   return classifyLineValue(value) == LINE_DETECTED;
 }
 
+// 指定値が床側と判定されるかを返す。ラインロスト判定で使う。
 bool isFloorDetectedValue(int value) {
   return classifyLineValue(value) == LINE_FLOOR;
 }
 
+// 超音波センサーの距離をcmで返す。pulseInには必ずtimeoutを指定して待ちすぎを防ぐ。
 float readUltrasonicDistanceCm(bool* ok) {
   digitalWrite(PIN_ULTRASONIC_TRIG, LOW);
   delayMicroseconds(2);

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Upload the main sketch to an Arduino board through a user-specified serial port.
 set -euo pipefail
 
 # Examples:

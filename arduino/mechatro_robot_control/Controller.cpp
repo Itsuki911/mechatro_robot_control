@@ -1,3 +1,11 @@
+/*
+  Controller.cpp
+
+  ロボットの状態遷移と、次に出すサーボ角/駆動速度を決める中心ファイル。
+  実機出力はActuators.cpp、センサー読み取りはSensors.cppへ分け、ここでは
+  「白線をどう追うか」「危険時にどう止めるか」という判断だけを扱う。
+*/
+
 #include "Controller.h"
 
 #include "Config.h"
@@ -15,6 +23,7 @@ static unsigned long goalCandidateStartedMs = 0;
 static int lastLineError = 0;
 static ControllerTelemetry telemetry;
 
+// 状態が変わった時だけ、状態名と入った時刻を更新する。
 static void setState(RobotState next, unsigned long nowMs) {
   if (currentState != next) {
     currentState = next;
@@ -22,22 +31,27 @@ static void setState(RobotState next, unsigned long nowMs) {
   }
 }
 
+// S1-S4のindexに対応するセンサーが白線を検出しているかを返す。
 static bool lineAt(const SensorData& sensor, int index) {
   return isLineDetectedValue(sensor.color[index]);
 }
 
+// 黒床または全ゼロを床側として扱う。全ゼロは配線異常でもラインロストでも安全側に倒す。
 static bool floorAt(const SensorData& sensor, int index) {
   return sensor.allZero || isFloorDetectedValue(sensor.color[index]);
 }
 
+// ゴール候補など、4センサーすべてが白線上にいるかを判定する。
 bool allLine(const SensorData& sensor) {
   return lineAt(sensor, 0) && lineAt(sensor, 1) && lineAt(sensor, 2) && lineAt(sensor, 3);
 }
 
+// ラインロスト候補として、4センサーすべてが床側かを判定する。
 bool allFloor(const SensorData& sensor) {
   return floorAt(sensor, 0) && floorAt(sensor, 1) && floorAt(sensor, 2) && floorAt(sensor, 3);
 }
 
+// 白線位置の左右誤差を計算する。負は左、正は右、0は中央。
 static int calcLineError(const SensorData& sensor) {
   const int weights[4] = {-3, -1, 1, 3};
   int sum = 0;
@@ -54,6 +68,7 @@ static int calcLineError(const SensorData& sensor) {
   return sum / count;
 }
 
+// CSV表示用のライン位置。誤差より少し細かいスケールで見たい時に使う。
 static int calcLinePosition(const SensorData& sensor) {
   const int positions[4] = {-30, -10, 10, 30};
   int sum = 0;
@@ -70,6 +85,7 @@ static int calcLinePosition(const SensorData& sensor) {
   return sum / count;
 }
 
+// 停止指令を作る。Goal/Emergency/Calibrationで共通利用する。
 static MotorCommand stopCommand() {
   MotorCommand cmd;
   cmd.driveSpeed = 0.0;
@@ -79,6 +95,7 @@ static MotorCommand stopCommand() {
   return cmd;
 }
 
+// サーボ角と前後速度からMotorCommandを作る。負速度は短時間バック用。
 static MotorCommand driveCommand(float speed, int servoDeg) {
   MotorCommand cmd;
   cmd.driveSpeed = speed;
@@ -88,6 +105,7 @@ static MotorCommand driveCommand(float speed, int servoDeg) {
   return cmd;
 }
 
+// 中央センサー/外側センサーの白線滞在時間を更新し、直線/カーブ判定に使う。
 static void updateLineTimers(const SensorData& sensor, unsigned long nowMs) {
   bool centerLine = lineAt(sensor, 1) || lineAt(sensor, 2);
   bool leftCurveLine = lineAt(sensor, 0) || (lineAt(sensor, 0) && lineAt(sensor, 1));
@@ -113,6 +131,7 @@ static void updateLineTimers(const SensorData& sensor, unsigned long nowMs) {
   telemetry.curveMs = curveStartedMs == 0 ? 0 : nowMs - curveStartedMs;
 }
 
+// 起動時またはテスト再開始時に、状態機械の内部記録を初期値へ戻す。
 void initController() {
   currentState = STATE_INIT;
   stateEnteredMs = millis();
@@ -126,6 +145,7 @@ void initController() {
   lastLineError = 0;
 }
 
+// センサー値から次周期の目標速度と目標サーボ角を決めるメイン関数。
 MotorCommand updateController(const SensorData& sensor) {
   unsigned long nowMs = sensor.timeMs;
   telemetry.eventCode = EVENT_NONE;
@@ -158,12 +178,14 @@ MotorCommand updateController(const SensorData& sensor) {
     return stopCommand();
   }
 
+  // 危険度が高い条件はライン追従より優先して処理する。
   if (!sensor.mpuOk || abs(sensor.rollDeg) >= TILT_RECOVER_DEG) {
     setState(STATE_TILT_RECOVERY, nowMs);
   } else if (sensor.distanceOk && sensor.distanceCm <= OBSTACLE_DISTANCE_CM) {
     setState(STATE_OBSTACLE_DETECTED, nowMs);
   }
 
+  // スタート直後の横線で止まらないよう、一定時間走ってからゴール判定する。
   if (runStartedMs > 0 && nowMs - runStartedMs >= GOAL_IGNORE_START_MS && allLine(sensor)) {
     if (goalCandidateStartedMs == 0) {
       goalCandidateStartedMs = nowMs;
@@ -207,6 +229,7 @@ MotorCommand updateController(const SensorData& sensor) {
     return driveCommand(RECOVERY_SEARCH_SPEED, SERVO_RIGHT_MAX - 8);
   }
 
+  // 全センサー床側なら、すぐ停止せず低速直進から復帰を試す。
   if (allFloor(sensor)) {
     if (allFloorStartedMs == 0) {
       allFloorStartedMs = nowMs;
@@ -221,6 +244,7 @@ MotorCommand updateController(const SensorData& sensor) {
     allFloorStartedMs = 0;
   }
 
+  // 復帰中は、まず直進して白線再検出を待ち、それでもだめなら短時間バックする。
   if (currentState == STATE_LINE_RECOVERY) {
     if (!allFloor(sensor) && (lineAt(sensor, 0) || lineAt(sensor, 1) || lineAt(sensor, 2) || lineAt(sensor, 3))) {
       setState(STATE_LINE_TRACE, nowMs);
@@ -235,6 +259,7 @@ MotorCommand updateController(const SensorData& sensor) {
     }
   }
 
+  // バック後も復帰できない場合は、再び低速探索へ戻す。
   if (currentState == STATE_BACKTRACK) {
     if (!allFloor(sensor) && (lineAt(sensor, 0) || lineAt(sensor, 1) || lineAt(sensor, 2) || lineAt(sensor, 3))) {
       setState(STATE_LINE_TRACE, nowMs);
@@ -253,6 +278,7 @@ MotorCommand updateController(const SensorData& sensor) {
   lastLineError = error;
   int linePos = calcLinePosition(sensor);
 
+  // 滞在時間で状態を決めることで、一瞬のノイズで直線/カーブ判定しない。
   if (telemetry.curveMs >= CURVE_CONFIRM_MS) {
     setState(currentState == STATE_CURVE_TRACE ? STATE_CURVE_TRACE : STATE_CURVE_ENTRY, nowMs);
     if (currentState == STATE_CURVE_ENTRY) {
@@ -284,11 +310,13 @@ MotorCommand updateController(const SensorData& sensor) {
   return driveCommand(speed, servo);
 }
 
+// DebugSerial.cppがCSVに出すため、直近の状態・誤差・滞在時間を返す。
 ControllerTelemetry getControllerTelemetry() {
   telemetry.state = currentState;
   return telemetry;
 }
 
+// enumをCSVで読みやすい短い文字列へ変換する。
 const char* stateName(RobotState state) {
   switch (state) {
     case STATE_INIT: return "INIT";

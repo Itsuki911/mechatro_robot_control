@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate clean and noisy robot sensor CSV files for offline analysis."""
+"""Generate clean and noisy robot sensor CSV files for offline analysis.
+
+The generated rows follow the same schema as Arduino CSV logs, so the analysis
+script can be tested without connecting the robot.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +38,7 @@ HEADER = [
 
 
 def segment(t: int) -> str:
+    """Return the scenario segment name for a given timestamp in milliseconds."""
     if t < 2500:
         return "CALIBRATION"
     if t < 6500:
@@ -54,6 +59,7 @@ def segment(t: int) -> str:
 
 
 def row_at(t: int, noisy: bool) -> list[object]:
+    """Build one CSV row for the current segment, optionally adding realistic noise."""
     seg = segment(t)
     s = [260, 260, 260, 260]
     state = seg
@@ -151,6 +157,7 @@ def row_at(t: int, noisy: bool) -> list[object]:
 
 
 def write_csv(path: Path, noisy: bool) -> None:
+    """Write one full dummy log and recompute estimated distance as a cumulative value."""
     with path.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(HEADER)
@@ -166,6 +173,7 @@ def write_csv(path: Path, noisy: bool) -> None:
 
 
 def main() -> int:
+    """Generate both clean and noisy dummy CSV files under data/."""
     out_dir = Path("data")
     out_dir.mkdir(exist_ok=True)
     random.seed(42)

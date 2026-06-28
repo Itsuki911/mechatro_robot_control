@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Open Arduino CLI serial monitor at the project default baudrate.
 set -euo pipefail
 
 # Examples:

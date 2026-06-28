@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Minimal live plot for Arduino CSV output."""
+"""Minimal live plot for Arduino CSV output.
+
+This is intentionally small: it watches the live serial CSV stream and shows
+S2/S3, servo angle, and drive speed for quick bench testing.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +16,7 @@ import serial
 
 
 def main() -> int:
+    """Read Arduino CSV rows from serial and refresh a rolling matplotlib plot."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", required=True)
     parser.add_argument("--baud", type=int, default=115200)

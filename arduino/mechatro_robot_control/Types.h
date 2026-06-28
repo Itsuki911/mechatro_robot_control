@@ -1,3 +1,11 @@
+/*
+  Types.h
+
+  複数ファイルで共有する型定義をまとめる。
+  Arduino本体、センサー、制御、ログが同じ構造体を使うことで、関数の引数を
+  増やしすぎず、初学者でもデータの流れを追いやすくする。
+*/
+
 #ifndef TYPES_H
 #define TYPES_H
 
@@ -22,12 +30,14 @@ enum RobotState {
   STATE_EMERGENCY_STOP
 };
 
+// センサー値を白線、黒床、不明のどれとして扱うかを表す。
 enum LineColor {
   LINE_FLOOR,
   LINE_DETECTED,
   LINE_UNKNOWN
 };
 
+// CSVログへ数値で出す異常フラグ。複数異常はビットORで同時に表せる。
 enum ErrorFlag {
   ERROR_NONE = 0,
   ERROR_COLOR_ALL_ZERO = 1 << 0,
@@ -38,6 +48,7 @@ enum ErrorFlag {
   ERROR_MOTOR_RANGE = 1 << 5
 };
 
+// 状態遷移の節目をCSVで追うためのイベント番号。
 enum EventCode {
   EVENT_NONE = 0,
   EVENT_ALL_FLOOR_DETECTED = 1,
@@ -48,6 +59,7 @@ enum EventCode {
   EVENT_GOAL_CONFIRMED = 6
 };
 
+// 1制御周期で読んだ入力値。okフラグは異常時の安全判断に使う。
 struct SensorData {
   unsigned long timeMs;
   int color[4];
@@ -60,6 +72,7 @@ struct SensorData {
   unsigned int errorFlags;
 };
 
+// ControllerからActuatorsへ渡す目標指令。実出力値はActuators側で滑らかにする。
 struct MotorCommand {
   float driveSpeed;
   int servoDeg;
@@ -67,6 +80,7 @@ struct MotorCommand {
   bool reverse;
 };
 
+// ログ出力用の内部状態。制御に直接必要ない値もPython解析のために残す。
 struct ControllerTelemetry {
   RobotState state;
   int linePosition;

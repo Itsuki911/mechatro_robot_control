@@ -1,8 +1,16 @@
+/*
+  mpu_test.ino
+
+  MPU-6050単体のroll角確認用スケッチ。
+  水平、左傾き、右傾きでroll_degが変化するか確認する。
+*/
+
 #include <Wire.h>
 #include <math.h>
 
 const byte MPU_ADDR = 0x68;
 
+// MPU-6050の加速度からroll角を概算する。読み取り失敗時はok=false。
 float readRollDeg(bool* ok) {
   *ok = true;
   Wire.beginTransmission(MPU_ADDR);
@@ -23,6 +31,7 @@ float readRollDeg(bool* ok) {
   return atan2(ay / 16384.0, az / 16384.0) * 57.2958;
 }
 
+// I2CとMPUを初期化し、CSVヘッダーを出す。
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -33,6 +42,7 @@ void setup() {
   Serial.println("time_ms,roll_deg,ok");
 }
 
+// 100msごとにroll角とokフラグをCSVで出力する。
 void loop() {
   bool ok = false;
   float roll = readRollDeg(&ok);
