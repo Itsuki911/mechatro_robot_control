@@ -1,101 +1,92 @@
 # mechatro_robot_control
 
-授業課題コースを安定して走行するための、Arduino実機用コードとC/C++制御ロジックの初期実装です。完璧な一発完成ではなく、実機テストで閾値・速度・ピン・モーター方向を調整しながら改善する前提で作っています。
+白線/黒床コースを走るArduino UNO向けロボット制御コードです。今回の主構成は、前輪サーボで操舵し、後輪DCモーターで前進/停止/短時間後退を行う実機です。センサーCSVログをPythonで保存・解析できるようにしています。
 
-## 構成
+## 実機構成
+
+- コース: 白線 / 黒床
+- 操舵: 前輪サーボ
+- 駆動: 後輪DCモーター
+- ライン検知: カラーセンサー S1-S4
+- 距離検知: デジタルピン接続の超音波センサー
+- 姿勢検知: MPU-6050
+
+古いメカナム4輪前提の説明は、今回の実機構成とは異なります。`cpp/` は制御ロジック学習用の旧構成サンプルとして残し、実機スケッチは `arduino/mechatro_robot_control/` を正とします。
+
+## ファイル構成
 
 ```text
-mechatro_robot_control/
-├── STUDY.md
-├── arduino/
-│   └── mechatro_robot_control.ino
-├── cpp/
-│   ├── main.cpp
-│   ├── RobotController.h
-│   ├── RobotController.cpp
-│   ├── SensorData.h
-│   ├── MotorCommand.h
-│   └── README.md
-├── docs/
-│   ├── hardware_summary.md
-│   ├── control_flow_summary.md
-│   ├── course_strategy.md
-│   ├── pin_assignment.md
-│   └── assets/
-└── README.md
+arduino/mechatro_robot_control/
+  mechatro_robot_control.ino  setup/loop
+  Config.h                    ピン、閾値、速度、時間定数
+  Types.h                     状態、センサー、指令、エラー型
+  Sensors.*                   カラー、超音波、MPU読み取り
+  Controller.*                状態遷移、白線追従、復帰、ゴール判定
+  Actuators.*                 サーボ、DCモーター、ランプ処理
+  DebugSerial.*               CSVログと簡易コマンド
+arduino/tests/                実機確認用の低速テストスケッチ
+python/                       ログ収集、解析、ダミーデータ生成
+data/                         clean/noisyの評価用CSV
+docs/                         配線、調整、テスト、CLI手順
+scripts/                      Arduino CLI補助スクリプト
 ```
 
-Arduino/C++の文法、使用している関数・クラス、センサー処理、メカナム輪の計算は[STUDY.md](STUDY.md)に初心者向けにまとめています。
-
-## 参考にした資料
-
-- `~/Downloads/robot_architecture.pptx.pdf`
-- `~/Downloads/M_flowchart.png`
-- `~/Downloads/mechatro1_week4_mon (1).pdf` 5ページ目
-- 指定された部品リンクの商品情報
-
-指定名の`robot_arcitecture.pptx.pdf`は見つからず、近い名前の`robot_architecture.pptx.pdf`を確認しました。Notionの「メカトロ_M2」は、このセッションで検索ツールが公開されていなかったため未確認です。
-
-## 使用部品
-
-- Arduino UNO互換機
-- MPU-6050
-- RGBカラーセンサー S9032-02 x4
-- Sharp GP2Y0A21YK距離センサー
-- MG996Rサーボ
-- DCギアードモーター x4
-- DRV8835モータードライバー x2
-- メカナムホイール x4
-- タミヤ ボールキャスター
-- バッテリー
-- 追加前提: 74HC4051相当のアナログマルチプレクサ
-
-## 制御方針
-
-4個のラインセンサーS1-S4で黒/白/その他を判定し、通常はS2/S3を中心に追従します。S1/S4が反応したときはカーブや横線として扱い、速度を落として補正を強めます。距離センサーで障害物を見つけたら停止後に低速横移動し、ラインを失ったら直前の誤差方向へ探索します。MPUのroll角が大きい場合は減速補正し、危険角度では緊急停止します。
-
-## 状態遷移
-
-`Init`、`Calibration`、`LineTrace`、`CurveEntry`、`CurveTrace`、`ObstacleDetected`、`ObstacleAvoidance`、`LineRecovery`、`TiltRecovery`、`Goal`、`EmergencyStop`を実装しています。詳細は[control_flow_summary.md](/Users/adachiitsuki/Desktop/mechatro_robot_control/docs/control_flow_summary.md)を参照してください。
-
-## ピン配置
-
-ピン配置は[pin_assignment.md](/Users/adachiitsuki/Desktop/mechatro_robot_control/docs/pin_assignment.md)にまとめています。UNOの入力数制約により、カラーセンサーと距離センサーはマルチプレクサ経由で読む前提です。
-
-## Arduino IDEでの書き込み
-
-1. Arduino IDEで[mechatro_robot_control.ino](/Users/adachiitsuki/Desktop/mechatro_robot_control/arduino/mechatro_robot_control.ino)を開く。
-2. ボードをArduino UNOまたは互換ボードに設定する。
-3. 標準ライブラリ`Wire`と`Servo`が使えることを確認する。
-4. 書き込み前に、モーターを浮かせた状態で電源とGND共通化を確認する。
-5. Serial Monitorを115200bpsで開き、S1-S4、距離、roll角を確認する。
-6. `BLACK_THRESHOLD`、`WHITE_THRESHOLD`、速度、モーター方向を調整する。
-
-## C/C++版の実行
+## Arduino CLI
 
 ```sh
-cd /Users/adachiitsuki/Desktop/mechatro_robot_control/cpp
-g++ -std=c++17 -Wall -Wextra -pedantic main.cpp RobotController.cpp -o robot_controller_demo
-./robot_controller_demo
+arduino-cli core install arduino:avr
+arduino-cli compile --fqbn arduino:avr:uno arduino/mechatro_robot_control
+arduino-cli upload -p /dev/cu.usbmodemXXXX --fqbn arduino:avr:uno arduino/mechatro_robot_control
+arduino-cli monitor -p /dev/cu.usbmodemXXXX -c baudrate=115200
 ```
 
-## 実機で調整が必要なパラメータ
+補助スクリプト:
 
-| パラメータ | 目的 |
+```sh
+scripts/arduino_compile.sh
+scripts/arduino_upload.sh /dev/cu.usbmodemXXXX
+scripts/arduino_monitor.sh /dev/cu.usbmodemXXXX
+```
+
+詳しくは [docs/arduino_cli_setup.md](docs/arduino_cli_setup.md) を参照してください。
+
+## Pythonログ収集と解析
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r python/requirements.txt
+python python/serial_logger.py --port /dev/cu.usbmodemXXXX --baud 115200
+python python/analyze_log.py data/dummy_sensor_clean.csv
+python python/analyze_log.py data/dummy_sensor_noisy.csv
+```
+
+CSV列は `time_ms,state,s1,s2,s3,s4,line_pos,line_error,straight_ms,curve_ms,distance_cm,roll_deg,servo_deg,drive_speed,estimated_distance_cm,error_flags,...` です。
+
+## 実機調整パラメータ
+
+主な調整値は `arduino/mechatro_robot_control/Config.h` にあります。
+
+| 定数 | 用途 |
 |---|---|
-| `BLACK_THRESHOLD` | 黒ライン判定 |
-| `WHITE_THRESHOLD` | 白床判定 |
-| `BASE_SPEED` | 通常速度 |
-| `CURVE_SPEED` | カーブ速度 |
-| `RECOVERY_SPEED` | ライン復帰/回避速度 |
-| `MAX_SPEED_STEP` | 急加速防止 |
-| `OBSTACLE_DISTANCE_CM` | 障害物判定距離 |
-| `TILT_RECOVER_DEG` | 傾き補正開始角 |
-| `TILT_STOP_DEG` | 緊急停止角 |
-| `GOAL_CONFIRM_MS` | ゴール誤検知防止時間 |
-| `OBSTACLE_AVOID_MS` | 回避動作時間 |
-| `*_DIRECTION_SIGN` | モーター回転方向 |
+| `WHITE_LINE_THRESHOLD` | 白線判定の下限 |
+| `BLACK_FLOOR_THRESHOLD` | 黒床判定の上限 |
+| `BASE_SPEED`, `STRAIGHT_SPEED`, `CURVE_SPEED` | 走行速度 |
+| `MAX_SPEED_STEP`, `MAX_SERVO_STEP` | 急変化防止 |
+| `STRAIGHT_CONFIRM_MS`, `CURVE_CONFIRM_MS` | 滞在時間による直線/カーブ判定 |
+| `GOAL_CONFIRM_MS`, `GOAL_IGNORE_START_MS` | ゴール誤検知防止 |
+| `ALL_FLOOR_CONFIRM_MS`, `LOST_LINE_FORWARD_MS`, `BACKTRACK_MS` | ラインロスト復帰 |
+| `OBSTACLE_DISTANCE_CM` | 障害物検知距離 |
 
-## Webotsなどへの移植
+推定移動距離はエンコーダなしの概算です。`ESTIMATED_SPEED_CM_PER_SEC_AT_FULL_PWM` は実測で補正してください。
 
-シミュレーション側でラインセンサー、距離、roll角を`SensorData`へ変換し、`RobotController::update()`の戻り値を各ホイール速度へ割り当てます。Arduino固有処理は`.ino`側へ寄せているため、制御判断は`cpp/`側をベースに移植できます。
+## テストスケッチ
+
+- `arduino/tests/color_sensor_test/color_sensor_test.ino`
+- `arduino/tests/servo_test/servo_test.ino`
+- `arduino/tests/dc_motor_test/dc_motor_test.ino`
+- `arduino/tests/ultrasonic_test/ultrasonic_test.ino`
+- `arduino/tests/mpu_test/mpu_test.ino`
+- `arduino/tests/integration_test/integration_test.ino`
+
+書き込み前はタイヤを浮かせ、モーター/サーボ別電源のGND共通を確認してください。Emergency Stopではモーター停止、サーボ中央に寄せます。

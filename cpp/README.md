@@ -1,14 +1,17 @@
 # C / C++制御ロジック
 
-このディレクトリはArduino APIに依存しない制御判断部分です。`SensorData`にセンサー値を入れて`RobotController::update()`を呼ぶと、メカナム4輪の速度指令とサーボ角度が`MotorCommand`として返ります。
+このディレクトリはArduino APIに依存しない、学習・確認用の制御判断サンプルです。実機で書き込む本体は `arduino/mechatro_robot_control/` です。
+
+`SensorData` に白線/黒床センサー値、超音波距離、roll角を入れて `RobotController::update()` を呼ぶと、後輪DCモーターの `driveSpeed` と前輪サーボの `servoDeg` を持つ `MotorCommand` が返ります。
 
 ## ビルド例
 
 ```sh
+cd cpp
 g++ -std=c++17 -Wall -Wextra -pedantic main.cpp RobotController.cpp -o robot_controller_demo
 ./robot_controller_demo
 ```
 
-## 移植方針
+## 注意
 
-Webotsなどでは、シミュレーション側でラインセンサー、距離、姿勢角を`SensorData`へ変換してください。モーター出力は`MotorCommand`の4輪値を各ホイール速度へ対応させます。実機との差はセンサー値のスケールとモーターの正転方向だけに閉じ込める方針です。
+Arduino版と同じ考え方をPC上で追いやすくするための簡易モデルです。実機ピン、CSVログ、MPU/超音波の読み取りはArduino側のファイルを確認してください。

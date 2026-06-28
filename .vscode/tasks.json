@@ -1,0 +1,37 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Arduino CLI: compile",
+      "type": "shell",
+      "command": "scripts/arduino_compile.sh",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Arduino CLI: upload",
+      "type": "shell",
+      "command": "scripts/arduino_upload.sh ${input:serialPort}",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: serial logger",
+      "type": "shell",
+      "command": "python python/serial_logger.py --port ${input:serialPort} --baud 115200",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: analyze dummy clean",
+      "type": "shell",
+      "command": "python python/analyze_log.py data/dummy_sensor_clean.csv",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "serialPort",
+      "type": "promptString",
+      "description": "Arduino serial port, e.g. /dev/cu.usbmodemXXXX"
+    }
+  ]
+}
