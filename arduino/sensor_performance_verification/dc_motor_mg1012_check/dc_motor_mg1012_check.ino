@@ -16,8 +16,10 @@
 
 const int MOTOR_PWM_PIN = 5;
 const int MOTOR_DIR_PIN = 7;
+// 低めのPWMから順に試す。動き出しPWMと発熱を確認するため、最大値は控えめにする。
 const int PWM_VALUES[] = {0, 45, 70, 95, 120, 0};
 const int PWM_COUNT = sizeof(PWM_VALUES) / sizeof(PWM_VALUES[0]);
+// 各PWMを少し保持し、目視で回転の有無と方向を確認できるようにする。
 const unsigned long STEP_HOLD_MS = 1800;
 const unsigned long STOP_HOLD_MS = 1200;
 
@@ -26,9 +28,11 @@ int direction = HIGH;
 unsigned long stepStartedMs = 0;
 
 void applyMotor(int pwm, int dir) {
+  // 先に方向を決めてからPWMを出す。pwm=0なら停止。
   digitalWrite(MOTOR_DIR_PIN, dir);
   analogWrite(MOTOR_PWM_PIN, constrain(pwm, 0, 255));
 
+  // 実際に出した方向とPWMをCSVで記録する。
   Serial.print(millis());
   Serial.print(',');
   Serial.print(dir == HIGH ? F("forward") : F("reverse"));
@@ -60,6 +64,7 @@ void loop() {
   stepIndex++;
   if (stepIndex >= PWM_COUNT) {
     stepIndex = 0;
+    // 1セット終わるたびに回転方向を反転して、配線方向を確認する。
     direction = direction == HIGH ? LOW : HIGH;
   }
 

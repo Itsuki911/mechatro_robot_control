@@ -16,8 +16,10 @@
 */
 
 const int DISTANCE_PIN = A0;
+// 距離センサーは出力が揺れやすいため、カラーセンサーより多めに平均する。
 const int SAMPLES = 16;
 const unsigned long PRINT_INTERVAL_MS = 100;
+// Arduino UNOを5V基準で使う前提。外部基準電圧を使う場合はここを変更する。
 const float ADC_REF_VOLTAGE = 5.0;
 const float ADC_MAX = 1023.0;
 
@@ -38,6 +40,7 @@ float rawToVoltage(int raw) {
 
 float voltageToDistanceCm(float voltage) {
   if (voltage < 0.4) {
+    // 低すぎる電圧は測定範囲外または未接続の可能性がある。
     return -1.0;
   }
   // GP2Y0A21YKの一般的な近似式。実測で補正して使う。
@@ -67,6 +70,7 @@ void loop() {
   float distanceCm = voltageToDistanceCm(voltage);
   int valid = distanceCm > 0.0 ? 1 : 0;
 
+  // valid=0の行は換算距離を信用せず、raw/voltageの変化だけを見る。
   Serial.print(now);
   Serial.print(',');
   Serial.print(raw);

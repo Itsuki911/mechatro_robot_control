@@ -16,8 +16,11 @@
 */
 
 const int SENSOR_COUNT = 4;
+// 本体のひし形配置と同じ順番。S1=前, S2=左, S3=右, S4=後ろ。
 const int SENSOR_PINS[SENSOR_COUNT] = {A0, A1, A2, A3};
+// 仮の白線判定しきい値。実測した白線値と黒床値の中間に調整する。
 const int WHITE_THRESHOLD = 700;
+// 複数回読んで平均することで、照明やADCの小さな揺れを見やすくする。
 const int SAMPLES = 8;
 const unsigned long PRINT_INTERVAL_MS = 100;
 
@@ -27,6 +30,7 @@ int readAverage(int pin) {
   long sum = 0;
   for (int i = 0; i < SAMPLES; i++) {
     sum += analogRead(pin);
+    // 連続読み取り時にADC値が落ち着くように短く待つ。
     delayMicroseconds(300);
   }
   return (int)(sum / SAMPLES);
@@ -57,6 +61,7 @@ void loop() {
     raw[i] = readAverage(SENSOR_PINS[i]);
   }
 
+  // CSV形式で出す。Arduino IDEのシリアルモニターでも、コピーして表計算にも貼れる。
   Serial.print(now);
   for (int i = 0; i < SENSOR_COUNT; i++) {
     Serial.print(',');
