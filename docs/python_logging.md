@@ -22,6 +22,8 @@ python python/serial_logger.py --port /dev/cu.usbmodemXXXX --baud 115200
 python python/analyze_log.py logs/robot_log_YYYYMMDD_HHMMSS.csv
 python python/analyze_log.py data/dummy_sensor_clean.csv
 python python/analyze_log.py data/dummy_sensor_noisy.csv
+python python/analyze_log.py data/course_page5_sensor_clean.csv
+python python/analyze_log.py data/course_page5_sensor_noisy.csv
 ```
 
 解析では状態遷移の件数、直線/カーブ滞在時間、推定距離、エラーフラグ回数を表示し、グラフを `logs/analysis/` に保存します。
@@ -35,6 +37,8 @@ python python/analyze_log.py data/dummy_sensor_noisy.csv
 - `servo_deg`, `drive_speed`: 実出力に近い操舵角と駆動指令
 - `estimated_distance_cm`: 時間と速度からの概算距離
 - `error_flags`: 0以外なら異常あり
+
+`course_page5_sensor_*.csv` には追加で、`estimated_distance_mm`、`s1_line`-`s4_line`、`ultrasonic_detected`、`course_segment` が入っています。`ultrasonic_ok` はセンサー正常フラグ、`ultrasonic_detected` は障害物が近い区間の検知フラグです。
 
 ## トラブルシューティング
 

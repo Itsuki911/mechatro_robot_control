@@ -12,6 +12,9 @@ from pathlib import Path
 import random
 
 
+MM_PER_SEC_AT_FULL_PWM = 280.0
+COURSE_DT_MS = 100
+
 HEADER = [
     "time_ms",
     "state",
@@ -34,6 +37,18 @@ HEADER = [
     "color_ok",
     "all_zero",
     "event_code",
+]
+
+COURSE_HEADER = HEADER + [
+    "estimated_distance_mm",
+    "course_distance_mm",
+    "motor_pwm",
+    "s1_line",
+    "s2_line",
+    "s3_line",
+    "s4_line",
+    "ultrasonic_detected",
+    "course_segment",
 ]
 
 
@@ -174,6 +189,179 @@ def write_csv(path: Path, noisy: bool) -> None:
             writer.writerow(row)
 
 
+def line_pattern(name: str, progress: float) -> tuple[list[int], int, int, int, int]:
+    """Return S1-S4 binary values plus line position, error, and servo angle."""
+    if name == "straight":
+        return [1, 0, 0, 1], 0, 0, 90, 0
+    if name == "right_curve":
+        return [1 if progress < 0.35 else 0, 0, 1, 1 if progress > 0.65 else 0], 30, 2, 68, 0
+    if name == "left_curve":
+        return [1 if progress < 0.35 else 0, 1, 0, 1 if progress > 0.65 else 0], -30, -2, 112, 0
+    if name == "zigzag":
+        if int(progress * 6) % 2 == 0:
+            return [1, 0, 1, 0], 30, 2, 70, 0
+        return [0, 1, 0, 1], -30, -2, 110, 0
+    if name == "all_line":
+        return [1, 1, 1, 1], 0, 0, 90, 0
+    if name == "floor":
+        return [0, 0, 0, 0], 0, 0, 90, 0
+    return [0, 0, 0, 0], 0, 0, 90, 0
+
+
+def raw_from_binary(bits: list[int], noisy: bool) -> list[int]:
+    """Convert 0/1 line sensor values to Arduino-like analog readings."""
+    raw = [790 if bit else 260 for bit in bits]
+    if noisy:
+        raw = [max(0, min(1023, value + random.randint(-35, 35))) for value in raw]
+    return raw
+
+
+def course_phases() -> list[dict[str, object]]:
+    """Approximate course_page5.png as distance-based sections in millimeters."""
+    return [
+        {"name": "start_to_first_obstacle", "state": "STRAIGHT_TRACE", "pattern": "straight", "length": 340.0, "speed": 0.38},
+        {"name": "first_obstacle_stop", "state": "OBSTACLE_DETECTED", "pattern": "straight", "duration": 450.0, "speed": 0.0, "ultrasonic": 1},
+        {"name": "first_obstacle_avoid", "state": "OBSTACLE_AVOIDANCE", "pattern": "right_curve", "length": 160.0, "speed": 0.18, "ultrasonic": 1},
+        {"name": "bottom_straight_to_right_curve", "state": "STRAIGHT_TRACE", "pattern": "straight", "length": 900.0, "speed": 0.40},
+        {"name": "right_large_curve", "state": "CURVE_TRACE", "pattern": "right_curve", "length": 1500.0, "speed": 0.24},
+        {"name": "upper_right_straight", "state": "STRAIGHT_TRACE", "pattern": "straight", "length": 900.0, "speed": 0.38},
+        {"name": "upper_cross_line_not_goal", "state": "LINE_TRACE", "pattern": "all_line", "length": 120.0, "speed": 0.30},
+        {"name": "upper_zigzag_30deg", "state": "CURVE_TRACE", "pattern": "zigzag", "length": 1000.0, "speed": 0.24},
+        {"name": "second_obstacle_stop", "state": "OBSTACLE_DETECTED", "pattern": "straight", "duration": 450.0, "speed": 0.0, "ultrasonic": 1},
+        {"name": "second_obstacle_avoid", "state": "OBSTACLE_AVOIDANCE", "pattern": "left_curve", "length": 160.0, "speed": 0.18, "ultrasonic": 1},
+        {"name": "central_loop_entry", "state": "CURVE_TRACE", "pattern": "left_curve", "length": 550.0, "speed": 0.24},
+        {"name": "central_r300_loop", "state": "CURVE_TRACE", "pattern": "left_curve", "length": 1885.0, "speed": 0.24},
+        {"name": "central_loop_exit", "state": "STRAIGHT_TRACE", "pattern": "straight", "length": 500.0, "speed": 0.32},
+        {"name": "upper_left_obstacle_stop", "state": "OBSTACLE_DETECTED", "pattern": "straight", "duration": 450.0, "speed": 0.0, "ultrasonic": 1},
+        {"name": "upper_left_obstacle_avoid", "state": "OBSTACLE_AVOIDANCE", "pattern": "right_curve", "length": 160.0, "speed": 0.18, "ultrasonic": 1},
+        {"name": "upper_left_straight", "state": "STRAIGHT_TRACE", "pattern": "straight", "length": 900.0, "speed": 0.38},
+        {"name": "left_side_curve_down", "state": "CURVE_TRACE", "pattern": "left_curve", "length": 1100.0, "speed": 0.24},
+        {"name": "line_gap_150mm_forward", "state": "LINE_RECOVERY", "pattern": "floor", "length": 35.0, "speed": 0.18},
+        {"name": "line_gap_150mm_backtrack", "state": "BACKTRACK", "pattern": "floor", "duration": 350.0, "speed": -0.18},
+        {"name": "line_gap_150mm_search", "state": "LINE_RECOVERY", "pattern": "floor", "length": 115.0, "speed": 0.18},
+        {"name": "bottom_left_to_goal", "state": "STRAIGHT_TRACE", "pattern": "straight", "length": 700.0, "speed": 0.30},
+        {"name": "goal_candidate", "state": "LINE_TRACE", "pattern": "all_line", "duration": 850.0, "speed": 0.10},
+        {"name": "goal_confirmed", "state": "GOAL", "pattern": "all_line", "duration": 700.0, "speed": 0.0},
+    ]
+
+
+def phase_duration_ms(phase: dict[str, object]) -> float:
+    """Calculate the phase duration from either explicit duration or length/speed."""
+    if "duration" in phase:
+        return float(phase["duration"])
+    speed = abs(float(phase["speed"]))
+    if speed == 0.0:
+        return 0.0
+    return float(phase["length"]) / (speed * MM_PER_SEC_AT_FULL_PWM) * 1000.0
+
+
+def course_rows(noisy: bool) -> list[list[object]]:
+    """Build rows that follow course_page5.png dimensions more closely."""
+    rows: list[list[object]] = []
+    estimated_mm = 0.0
+    course_distance_mm = 0.0
+    straight_ms = 0
+    curve_ms = 0
+    time_ms = 0
+
+    calibration_rows = int(2500 / COURSE_DT_MS)
+    for _ in range(calibration_rows):
+        bits = [0, 0, 0, 0]
+        raw = raw_from_binary(bits, noisy)
+        rows.append([
+            time_ms, "CALIBRATION", *raw, 0, 0, 0, 0, 80.0, 0.0, 90, 0.0,
+            0.0, 0, 1, 1, 1, 0, 0, 0.0, 0.0, 0, *bits, 0, "calibration",
+        ])
+        time_ms += COURSE_DT_MS
+
+    for phase in course_phases():
+        duration = phase_duration_ms(phase)
+        steps = max(1, int(round(duration / COURSE_DT_MS)))
+        speed = float(phase["speed"])
+        ultrasonic = int(phase.get("ultrasonic", 0))
+        for step in range(steps):
+            progress = step / max(1, steps - 1)
+            bits, line_pos, line_error, servo, all_zero = line_pattern(str(phase["pattern"]), progress)
+            raw = raw_from_binary(bits, noisy)
+
+            if noisy:
+                servo += random.randint(-3, 3)
+                roll = random.uniform(-1.8, 1.8)
+                speed_out = 0.0 if speed == 0.0 else speed + random.uniform(-0.018, 0.018)
+            else:
+                roll = 0.0
+                speed_out = speed
+
+            if phase["state"] in ("STRAIGHT_TRACE", "LINE_TRACE") and (bits[0] or bits[3]):
+                straight_ms += COURSE_DT_MS
+            else:
+                straight_ms = 0
+            if phase["state"] == "CURVE_TRACE" or bits[1] or bits[2]:
+                curve_ms += COURSE_DT_MS
+            else:
+                curve_ms = 0
+
+            dt_sec = COURSE_DT_MS / 1000.0
+            travel_mm = abs(speed_out) * MM_PER_SEC_AT_FULL_PWM * dt_sec
+            estimated_mm += travel_mm
+            if speed_out >= 0.0:
+                course_distance_mm += travel_mm
+            else:
+                course_distance_mm = max(0.0, course_distance_mm - travel_mm)
+
+            if ultrasonic:
+                distance_cm = 18.0 - min(8.0, progress * 8.0)
+            else:
+                distance_cm = 85.0
+            if noisy:
+                distance_cm += random.uniform(-1.5, 1.5)
+
+            event_code = 0
+            if phase["name"].startswith("line_gap_150mm") and step == 0:
+                event_code = 1
+            elif phase["name"] == "goal_candidate" and step == 0:
+                event_code = 5
+            elif phase["name"] == "goal_confirmed" and step == 0:
+                event_code = 6
+
+            rows.append([
+                time_ms,
+                phase["state"],
+                *raw,
+                line_pos,
+                line_error,
+                straight_ms,
+                curve_ms,
+                round(distance_cm, 1),
+                round(roll, 1),
+                max(58, min(122, servo)),
+                round(speed_out, 3),
+                round(estimated_mm / 10.0, 2),
+                0,
+                1,
+                1,
+                1,
+                all_zero,
+                event_code,
+                round(estimated_mm, 1),
+                round(course_distance_mm, 1),
+                int(round(abs(speed_out) * 255)),
+                *bits,
+                ultrasonic,
+                phase["name"],
+            ])
+            time_ms += COURSE_DT_MS
+    return rows
+
+
+def write_course_csv(path: Path, noisy: bool) -> None:
+    """Write a course_page5-oriented CSV without removing older dummy files."""
+    with path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(COURSE_HEADER)
+        writer.writerows(course_rows(noisy))
+
+
 def main() -> int:
     """Generate both clean and noisy dummy CSV files under data/."""
     out_dir = Path("data")
@@ -181,6 +369,8 @@ def main() -> int:
     random.seed(42)
     write_csv(out_dir / "dummy_sensor_clean.csv", noisy=False)
     write_csv(out_dir / "dummy_sensor_noisy.csv", noisy=True)
+    write_course_csv(out_dir / "course_page5_sensor_clean.csv", noisy=False)
+    write_course_csv(out_dir / "course_page5_sensor_noisy.csv", noisy=True)
     return 0
 
 

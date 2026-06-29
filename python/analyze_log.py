@@ -76,6 +76,15 @@ def print_summary(rows: list[dict[str, str]]) -> None:
     print("max_straight_ms:", int(max(as_float(row, "straight_ms") for row in rows)))
     print("max_curve_ms:", int(max(as_float(row, "curve_ms") for row in rows)))
     print("final_estimated_distance_cm:", round(as_float(rows[-1], "estimated_distance_cm"), 2))
+    if "estimated_distance_mm" in rows[-1]:
+        print("final_estimated_distance_mm:", round(as_float(rows[-1], "estimated_distance_mm"), 1))
+    if "ultrasonic_detected" in rows[-1]:
+        detected = sum(1 for row in rows if row["ultrasonic_detected"] == "1")
+        print("ultrasonic_detected_rows:", detected)
+    for key in ["s1_line", "s2_line", "s3_line", "s4_line"]:
+        if key in rows[-1]:
+            line_rows = sum(1 for row in rows if row[key] == "1")
+            print(f"{key}_rows:", line_rows)
     print("error_flag_counts:")
     for flag, count in sorted(errors.items(), key=lambda item: int(item[0])):
         print(f"{flag}: {count}")

@@ -26,7 +26,7 @@ arduino/mechatro_robot_control/
   DebugSerial.*               CSVログと簡易コマンド
 arduino/tests/                実機確認用の低速テストスケッチ
 python/                       ログ収集、解析、ダミーデータ生成
-data/                         clean/noisyの評価用CSV
+data/                         clean/noisyとcourse_page5基準の評価用CSV
 docs/                         配線、調整、テスト、CLI手順
 scripts/                      Arduino CLI補助スクリプト
 ```
@@ -59,9 +59,12 @@ pip install -r python/requirements.txt
 python python/serial_logger.py --port /dev/cu.usbmodemXXXX --baud 115200
 python python/analyze_log.py data/dummy_sensor_clean.csv
 python python/analyze_log.py data/dummy_sensor_noisy.csv
+python python/analyze_log.py data/course_page5_sensor_clean.csv
+python python/analyze_log.py data/course_page5_sensor_noisy.csv
 ```
 
 CSV列は `time_ms,state,s1,s2,s3,s4,line_pos,line_error,straight_ms,curve_ms,distance_cm,roll_deg,servo_deg,drive_speed,estimated_distance_cm,error_flags,...` です。
+`course_page5_sensor_*.csv` には、`estimated_distance_mm`、各カラーセンサーの0/1列、超音波の物体検知0/1列も含めています。
 
 ## 実機調整パラメータ
 
