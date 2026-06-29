@@ -7,7 +7,7 @@
 - コース: 白線 / 黒床
 - 操舵: 前輪サーボ
 - 駆動: 後輪DCモーター
-- ライン検知: カラーセンサー S1-S4
+- ライン検知: カラーセンサー S1-S4のG出力(A0-A3直結、ひし形配置)
 - 距離検知: デジタルピン接続の超音波センサー
 - 姿勢検知: MPU-6050
 
@@ -79,6 +79,8 @@ CSV列は `time_ms,state,s1,s2,s3,s4,line_pos,line_error,straight_ms,curve_ms,di
 | `OBSTACLE_DISTANCE_CM` | 障害物検知距離 |
 
 推定移動距離はエンコーダなしの概算です。`ESTIMATED_SPEED_CM_PER_SEC_AT_FULL_PWM` は実測で補正してください。
+
+カラーセンサーはMUXを使わず、S1を前方、S2を左、S3を右、S4を後方に置くひし形配置です。MPU-6050はA4/A5のI2Cを使います。
 
 ## テストスケッチ
 

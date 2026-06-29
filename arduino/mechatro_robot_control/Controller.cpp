@@ -32,6 +32,7 @@ static void setState(RobotState next, unsigned long nowMs) {
 }
 
 // S1-S4のindexに対応するセンサーが白線を検出しているかを返す。
+// ひし形配置: S1=前方, S2=左, S3=右, S4=後方。
 static bool lineAt(const SensorData& sensor, int index) {
   return isLineDetectedValue(sensor.color[index]);
 }
@@ -52,8 +53,9 @@ bool allFloor(const SensorData& sensor) {
 }
 
 // 白線位置の左右誤差を計算する。負は左、正は右、0は中央。
+// ひし形配置では前方S1と後方S4は中央軸、S2/S3を左右補正に使う。
 static int calcLineError(const SensorData& sensor) {
-  const int weights[4] = {-3, -1, 1, 3};
+  const int weights[4] = {0, -2, 2, 0};
   int sum = 0;
   int count = 0;
   for (int i = 0; i < 4; i++) {
@@ -70,7 +72,7 @@ static int calcLineError(const SensorData& sensor) {
 
 // CSV表示用のライン位置。誤差より少し細かいスケールで見たい時に使う。
 static int calcLinePosition(const SensorData& sensor) {
-  const int positions[4] = {-30, -10, 10, 30};
+  const int positions[4] = {0, -30, 30, 0};
   int sum = 0;
   int count = 0;
   for (int i = 0; i < 4; i++) {
@@ -105,11 +107,13 @@ static MotorCommand driveCommand(float speed, int servoDeg) {
   return cmd;
 }
 
-// 中央センサー/外側センサーの白線滞在時間を更新し、直線/カーブ判定に使う。
+// 中央軸センサー/左右センサーの白線滞在時間を更新し、直線/カーブ判定に使う。
+// 直線: 前方S1または後方S4が白線上にいる時間。
+// カーブ: 左S2または右S3が白線上にいる時間。
 static void updateLineTimers(const SensorData& sensor, unsigned long nowMs) {
-  bool centerLine = lineAt(sensor, 1) || lineAt(sensor, 2);
-  bool leftCurveLine = lineAt(sensor, 0) || (lineAt(sensor, 0) && lineAt(sensor, 1));
-  bool rightCurveLine = lineAt(sensor, 3) || (lineAt(sensor, 2) && lineAt(sensor, 3));
+  bool centerLine = lineAt(sensor, SENSOR_FRONT) || lineAt(sensor, SENSOR_REAR);
+  bool leftCurveLine = lineAt(sensor, SENSOR_LEFT);
+  bool rightCurveLine = lineAt(sensor, SENSOR_RIGHT);
 
   if (centerLine) {
     if (straightStartedMs == 0) {

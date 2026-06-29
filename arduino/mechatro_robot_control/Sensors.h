@@ -2,6 +2,7 @@
   Sensors.h
 
   センサー読み取りAPIの宣言。
+  カラーセンサー4つのG出力をA0-A3から直接読み、MPUはA4/A5のI2Cで読む。
   setup()ではinitSensors()、loop()ではreadSensors()を呼ぶだけでよいようにする。
 */
 
@@ -10,7 +11,7 @@
 
 #include "Types.h"
 
-// MUX、超音波センサー、I2C/MPUを初期化する。
+// カラーセンサー、超音波センサー、I2C/MPUを初期化する。
 void initSensors();
 
 // 現在時刻を受け取り、その周期で使うSensorDataをまとめて返す。

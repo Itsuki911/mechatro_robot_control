@@ -61,6 +61,8 @@ def segment(t: int) -> str:
 def row_at(t: int, noisy: bool) -> list[object]:
     """Build one CSV row for the current segment, optionally adding realistic noise."""
     seg = segment(t)
+    # Sensor layout is diamond-shaped:
+    # S1 front, S2 left, S3 right, S4 rear. High values mean white line.
     s = [260, 260, 260, 260]
     state = seg
     line_pos = 0
@@ -78,12 +80,12 @@ def row_at(t: int, noisy: bool) -> list[object]:
     if seg == "CALIBRATION":
         state = "CALIBRATION"
     elif seg == "STRAIGHT_TRACE":
-        s = [270, 780, 790, 280]
+        s = [780, 270, 280, 790]
         straight_ms = t - 2500
         speed = 0.38
     elif seg == "CURVE_TRACE_R":
         state = "CURVE_TRACE"
-        s = [260, 300, 760, 820]
+        s = [300, 270, 820, 760]
         line_pos = 20
         line_error = 2
         curve_ms = t - 6500
@@ -91,7 +93,7 @@ def row_at(t: int, noisy: bool) -> list[object]:
         speed = 0.22
     elif seg == "CURVE_TRACE_L":
         state = "CURVE_TRACE"
-        s = [830, 770, 310, 260]
+        s = [760, 830, 300, 270]
         line_pos = -20
         line_error = -2
         curve_ms = t - 9000
@@ -105,12 +107,12 @@ def row_at(t: int, noisy: bool) -> list[object]:
         speed = 0.16 if t < 12200 else -0.16
         event = 1 if t == 11500 else 3 if t == 12200 else 0
     elif seg == "LINE_TRACE":
-        s = [260, 760, 780, 270]
+        s = [770, 300, 310, 760]
         state = "LINE_TRACE"
         speed = 0.30
         event = 4 if t == 12700 else 0
     elif seg == "OBSTACLE_DETECTED":
-        s = [260, 750, 760, 270]
+        s = [760, 300, 310, 750]
         state = "OBSTACLE_DETECTED" if t < 15300 else "OBSTACLE_AVOIDANCE"
         distance = 12.0
         servo = 112

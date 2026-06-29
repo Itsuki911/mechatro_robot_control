@@ -3,19 +3,19 @@
 ## 白線/黒床の閾値
 
 1. `arduino/tests/color_sensor_test/color_sensor_test.ino` を書き込む。
-2. S1-S4を白線上に置き、各値を記録する。
-3. S1-S4を黒床上に置き、各値を記録する。
+2. ひし形配置のS1-S4それぞれについて、白線上のG出力値を記録する。
+3. S1-S4それぞれについて、黒床上のG出力値を記録する。
 4. 白線値と黒床値の中間を `WHITE_LINE_THRESHOLD` と `BLACK_FLOOR_THRESHOLD` の候補にする。
 
 照明、センサー高さ、床材で値は変わります。走行前に毎回数十秒ログを取り、Pythonで値の範囲を確認してください。
 
 ## 直線判定
 
-S2/S3のどちらかが白線を `STRAIGHT_CONFIRM_MS` 以上検出し続けると `STATE_STRAIGHT_TRACE` になります。直線でふらつく場合は `STRAIGHT_SPEED` を下げ、`MAX_SPEED_STEP` を小さくします。
+S1またはS4が白線を `STRAIGHT_CONFIRM_MS` 以上検出し続けると、中心軸が白線上にいる直線候補として `STATE_STRAIGHT_TRACE` になります。直線でふらつく場合は `STRAIGHT_SPEED` を下げ、`MAX_SPEED_STEP` を小さくします。
 
 ## カーブ判定
 
-左側S1/S2、右側S3/S4の滞在時間が `CURVE_CONFIRM_MS` を超えるとカーブ扱いになります。反応が遅い場合は短くし、ノイズで誤検知する場合は長くします。サーボの急変化は `MAX_SERVO_STEP` で抑えます。
+左側S2、右側S3の滞在時間が `CURVE_CONFIRM_MS` を超えるとカーブ扱いになります。反応が遅い場合は短くし、ノイズで誤検知する場合は長くします。サーボの急変化は `MAX_SERVO_STEP` で抑えます。
 
 ## ゴール判定
 

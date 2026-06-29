@@ -2,7 +2,8 @@
   Sensors.cpp
 
   実機センサーをArduino APIで読み取り、Controllerが扱いやすいSensorDataへまとめる。
-  カラーセンサーはMUX経由、距離は超音波TRIG/ECHO、姿勢はMPU-6050のI2C読み取り。
+  カラーセンサーはA0-A3へ直結したG出力、距離は超音波TRIG/ECHO、
+  姿勢はMPU-6050のI2C読み取り。
   失敗や異常値はerrorFlagsへ入れ、制御側が安全寄りに判断できるようにする。
 */
 
@@ -16,20 +17,11 @@
 static int previousColor[4] = {0, 0, 0, 0};
 static unsigned long lastColorChangeMs = 0;
 
-// 74HC4051などのMUXで、読みたいセンサーチャンネルを選ぶ。
-static void selectMux(int channel) {
-  digitalWrite(PIN_MUX_S0, channel & 0x01);
-  digitalWrite(PIN_MUX_S1, (channel >> 1) & 0x01);
-  digitalWrite(PIN_MUX_S2, (channel >> 2) & 0x01);
-}
-
-// MUX入力を複数回読み、単発ノイズを少し抑えた平均値を返す。
-static int readMuxAverage(int channel) {
-  selectMux(channel);
-  delayMicroseconds(180);
+// 指定したアナログピンを複数回読み、単発ノイズを少し抑えた平均値を返す。
+static int readAnalogAverage(int pin) {
   long sum = 0;
   for (int i = 0; i < SENSOR_SAMPLES; i++) {
-    sum += analogRead(PIN_MUX_SIG);
+    sum += analogRead(pin);
     delayMicroseconds(120);
   }
   return (int)(sum / SENSOR_SAMPLES);
@@ -68,9 +60,10 @@ static float readRollDeg(bool* ok) {
 
 // センサー系のピン、I2C、MPUを初期化する。
 void initSensors() {
-  pinMode(PIN_MUX_S0, OUTPUT);
-  pinMode(PIN_MUX_S1, OUTPUT);
-  pinMode(PIN_MUX_S2, OUTPUT);
+  pinMode(PIN_COLOR_S1, INPUT);
+  pinMode(PIN_COLOR_S2, INPUT);
+  pinMode(PIN_COLOR_S3, INPUT);
+  pinMode(PIN_COLOR_S4, INPUT);
   pinMode(PIN_ULTRASONIC_TRIG, OUTPUT);
   pinMode(PIN_ULTRASONIC_ECHO, INPUT);
   digitalWrite(PIN_ULTRASONIC_TRIG, LOW);
@@ -83,10 +76,10 @@ void initSensors() {
 SensorData readSensors(unsigned long nowMs) {
   SensorData data;
   data.timeMs = nowMs;
-  data.color[0] = readMuxAverage(CH_COLOR_S1);
-  data.color[1] = readMuxAverage(CH_COLOR_S2);
-  data.color[2] = readMuxAverage(CH_COLOR_S3);
-  data.color[3] = readMuxAverage(CH_COLOR_S4);
+  data.color[SENSOR_FRONT] = readAnalogAverage(PIN_COLOR_S1);
+  data.color[SENSOR_LEFT] = readAnalogAverage(PIN_COLOR_S2);
+  data.color[SENSOR_RIGHT] = readAnalogAverage(PIN_COLOR_S3);
+  data.color[SENSOR_REAR] = readAnalogAverage(PIN_COLOR_S4);
   data.distanceCm = readUltrasonicDistanceCm(&data.distanceOk);
   data.rollDeg = readRollDeg(&data.mpuOk);
   data.errorFlags = ERROR_NONE;

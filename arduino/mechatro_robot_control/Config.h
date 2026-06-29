@@ -17,11 +17,12 @@
 
 const int DRIVE_MODE = DRIVE_MODE_SERVO_REAR_DC;
 
-// MUX経由でS1-S4のカラーセンサーを読むためのピン。
-const int PIN_MUX_SIG = A0;
-const int PIN_MUX_S0 = 2;
-const int PIN_MUX_S1 = 4;
-const int PIN_MUX_S2 = A1;
+// カラーセンサーS1-S4のG出力をA0-A3へ直結して読む。
+// A4/A5はMPU-6050のI2C(SDA/SCL)で使うため、カラーセンサーには使わない。
+const int PIN_COLOR_S1 = A0;  // ひし形配置の前方頂点
+const int PIN_COLOR_S2 = A1;  // 左側
+const int PIN_COLOR_S3 = A2;  // 右側
+const int PIN_COLOR_S4 = A3;  // 後方頂点
 
 // 前輪サーボと後輪DCモーターのピン。
 const int PIN_SERVO = 10;
@@ -34,11 +35,11 @@ const int PIN_ULTRASONIC_ECHO = 9;
 
 const byte MPU_ADDR = 0x68;
 
-// MUXチャンネル割り当て。左からS1, S2, S3, S4。
-const int CH_COLOR_S1 = 0;
-const int CH_COLOR_S2 = 1;
-const int CH_COLOR_S3 = 2;
-const int CH_COLOR_S4 = 3;
+// ひし形配置のセンサーindex。Controller.cppの判定コメントと合わせる。
+const int SENSOR_FRONT = 0;  // S1
+const int SENSOR_LEFT = 1;   // S2
+const int SENSOR_RIGHT = 2;  // S3
+const int SENSOR_REAR = 3;   // S4
 
 // 今回は白線/黒床。実測値に合わせて閾値を調整する。
 const bool LINE_IS_WHITE = true;

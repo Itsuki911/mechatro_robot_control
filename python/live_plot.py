@@ -2,7 +2,7 @@
 """Minimal live plot for Arduino CSV output.
 
 This is intentionally small: it watches the live serial CSV stream and shows
-S2/S3, servo angle, and drive speed for quick bench testing.
+S1-S4, servo angle, and drive speed for quick bench testing.
 """
 
 from __future__ import annotations
@@ -24,8 +24,7 @@ def main() -> int:
     args = parser.parse_args()
 
     times = deque(maxlen=args.window)
-    s2 = deque(maxlen=args.window)
-    s3 = deque(maxlen=args.window)
+    sensors = {key: deque(maxlen=args.window) for key in ("s1", "s2", "s3", "s4")}
     servo = deque(maxlen=args.window)
     speed = deque(maxlen=args.window)
     header = None
@@ -45,13 +44,13 @@ def main() -> int:
                 continue
             row = dict(zip(header, parts))
             times.append(float(row["time_ms"]) / 1000.0)
-            s2.append(float(row["s2"]))
-            s3.append(float(row["s3"]))
+            for key in sensors:
+                sensors[key].append(float(row[key]))
             servo.append(float(row["servo_deg"]))
             speed.append(float(row["drive_speed"]) * 1000.0)
             ax.clear()
-            ax.plot(times, s2, label="s2")
-            ax.plot(times, s3, label="s3")
+            for key, values in sensors.items():
+                ax.plot(times, values, label=key)
             ax.plot(times, servo, label="servo")
             ax.plot(times, speed, label="drive_speed x1000")
             ax.legend()

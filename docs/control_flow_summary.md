@@ -16,7 +16,7 @@
 | `STATE_INIT` | 起動直後 |
 | `STATE_CALIBRATION` | センサー安定待ち |
 | `STATE_LINE_TRACE` | 通常の白線追従 |
-| `STATE_STRAIGHT_TRACE` | 中央センサーが白線上に長くいる直線 |
+| `STATE_STRAIGHT_TRACE` | 中央軸センサーS1/S4が白線上に長くいる直線 |
 | `STATE_CURVE_ENTRY` | カーブ検知直後 |
 | `STATE_CURVE_TRACE` | カーブ追従 |
 | `STATE_LINE_RECOVERY` | 全センサー黒床/0相当からの低速直進復帰 |
@@ -30,6 +30,8 @@
 ## 白線/黒床判定
 
 `LINE_IS_WHITE=true` のため、値が `WHITE_LINE_THRESHOLD` 以上なら白線、`BLACK_FLOOR_THRESHOLD` 以下なら黒床と扱います。全センサー黒床または全センサー0相当ならラインロスト候補です。
+
+カラーセンサーはひし形配置です。S1/S4を中央軸、S2を左、S3を右として扱い、直線判定はS1/S4、カーブ判定はS2/S3の白線滞在時間を使います。
 
 ## ゴール判定
 
